@@ -3,7 +3,43 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>QR Code Generator</title>
+    <title>Free QR Code Generator — QR Studio</title>
+    <meta name="description" content="Free QR code generator with 40+ types. Create WiFi, vCard, URL, WhatsApp, UPI, Bitcoin QR codes. Custom colors, logos, styles. Download PNG, SVG, PDF. No signup needed." />
+    <meta property="og:title" content="QR Studio — Free QR Code Generator" />
+    <meta property="og:description" content="Generate beautiful QR codes for any use case. 40+ types, custom designs, instant download." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://qrstudio.app" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="QR Studio — Free QR Code Generator" />
+    <meta name="twitter:description" content="Generate beautiful QR codes for any use case. 40+ types, custom designs, instant download." />
+    <link rel="canonical" href="https://qrstudio.app/" />
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "QR Studio",
+      "url": "https://qrstudio.app",
+      "description": "Free QR code generator with 40+ types. Create WiFi, vCard, URL, WhatsApp, UPI, Bitcoin QR codes. Custom colors, logos, styles. Download PNG, SVG, PDF.",
+      "applicationCategory": "UtilitiesApplication",
+      "operatingSystem": "Web",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      }
+    }
+    </script>
+    <!-- Theme flash prevention: apply dark class before React mounts -->
+    <script>
+      (function() {
+        try {
+          var t = localStorage.getItem('theme');
+          if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -23,7 +23,24 @@ export type QRType =
   | 'cleaning'
   | 'logistics'
   | 'finance'
-  | 'cv';
+  | 'cv'
+  | 'mecard'
+  | 'geo'
+  | 'telegram'
+  | 'zoom'
+  | 'google_meet'
+  | 'teams'
+  | 'youtube'
+  | 'linkedin'
+  | 'spotify'
+  | 'paypal'
+  | 'upi'
+  | 'bitcoin'
+  | 'ethereum'
+  | 'sepa'
+  | 'google_review';
+
+export type QRCategory = 'popular' | 'social' | 'payments' | 'business' | 'utilities';
 
 export interface QRField {
   name: string;
@@ -41,6 +58,7 @@ export interface QRTypeConfig {
   icon: string;
   description: string;
   fields: QRField[];
+  category: QRCategory;
 }
 
 export interface QRData {
@@ -63,9 +81,38 @@ export interface TemplateStyle {
   iconColor: string;
 }
 
+export type DotStyle = 'square' | 'rounded' | 'dots' | 'classy' | 'classy-rounded' | 'extra-rounded';
+export type EyeOuterStyle = 'square' | 'rounded' | 'circle';
+export type EyeInnerStyle = 'square' | 'dot' | 'diamond';
+export type FrameStyle = 'none' | 'simple' | 'rounded' | 'badge' | 'banner' | 'ticket';
+export type ECLevel = 'L' | 'M' | 'Q' | 'H';
+
+export interface CustomizationOptions {
+  fgColor: string;
+  bgColor: string;
+  transparent: boolean;
+  dotStyle: DotStyle;
+  eyeOuterStyle: EyeOuterStyle;
+  eyeInnerStyle: EyeInnerStyle;
+  eyeColor: string;
+  logoUrl: string | null;
+  logoSize: number; // fraction 0.1-0.4
+  logoPadding: number; // px 0-10
+  logoShape: 'square' | 'circle';
+  ecLevel: ECLevel;
+  outputSize: number; // px 128-2000
+  frameStyle: FrameStyle;
+  frameCta: string;
+  frameColor: string;
+  frameFontSize: number; // px 10-24
+}
+
+export type ExportFormat = 'png' | 'png-hd' | 'svg' | 'jpeg' | 'pdf' | 'copy-image' | 'copy-datauri' | 'copy-embed';
+
 export interface QRState {
   type: QRType;
   data: QRData;
   template: TemplateName;
   customColor: string;
+  customization: CustomizationOptions;
 }

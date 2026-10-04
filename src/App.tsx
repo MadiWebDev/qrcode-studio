@@ -1,265 +1,227 @@
-import { useState, useCallback, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { QrCode, Palette, Settings, Info, RotateCcw } from 'lucide-react';
+import { useRef, useState, useCallback, useMemo, useEffect } from 'react';
+import { Routes, Route } from 'react-router';
+
+import { ThemeProvider } from 'next-themes';
+import { Toaster } from 'sonner';
+import { QrCode, Info } from 'lucide-react';
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Separator } from '@/components/ui/separator';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { TypeSelector } from '@/components/TypeSelector';
-import { DynamicForm } from '@/components/DynamicForm';
-import { TemplateSelector } from '@/components/TemplateSelector';
-import { QRPreview } from '@/components/QRPreview';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { OnboardingTour } from '@/components/OnboardingTour';
+import Home from '@/pages/Home';
+import Blog from '@/pages/Blog';
+import About from '@/pages/About';
+import Privacy from '@/pages/Privacy';
+import Terms from '@/pages/Terms';
+import Contact from '@/pages/Contact';
+import type { QRType, QRData, TemplateName, CustomizationOptions } from '@/types';
+import { DEFAULT_CUSTOMIZATION } from '@/lib/defaults';
+import { generateQRData, getTypeConfig } from '@/lib/qr-helpers';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
-import type { QRType, QRData, TemplateName } from '@/types';
-import { getTypeConfig, generateQRData } from '@/lib/qr-helpers';
+import LandingPage from './pages/LandingPage';
 
+// ── 404 page ──────────────────────────────────────────────────────────────────
+function NotFound() {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center px-4">
+      <div className="text-6xl font-bold text-muted-foreground/20">404</div>
+      <h1 className="text-2xl font-bold">Page not found</h1>
+      <p className="text-muted-foreground max-w-sm">
+        The page you're looking for doesn't exist. Go back to the generator and create some QR codes.
+      </p>
+      <a
+        href="/"
+        className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+      >
+        Back to QR Studio
+      </a>
+    </div>
+  );
+}
+
+// ── Bulk coming-soon placeholder ──────────────────────────────────────────────
+function BulkPlaceholder() {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center px-4">
+      <div className="text-4xl">🚀</div>
+      <h1 className="text-2xl font-bold">Bulk QR Generator — Coming Soon</h1>
+      <p className="text-muted-foreground max-w-md">
+        Upload a CSV or Excel file and generate hundreds of QR codes in one click. This feature is in active development and will be available in Phase 2.
+      </p>
+      <a
+        href="/"
+        className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+      >
+        Use QR Studio Now
+      </a>
+    </div>
+  );
+}
+
+// ── App header ────────────────────────────────────────────────────────────────
+function AppHeader() {
+  return (
+    <header className="sticky top-0 z-50 bg-white/70 dark:bg-slate-950/70 backdrop-blur-xl border-b border-border/60">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
+        <a href="/" className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg shadow-primary/20">
+            <QrCode className="w-4 h-4 text-primary-foreground" />
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="font-bold text-lg tracking-tight">QR Studio</span>
+            <span className="text-xs text-muted-foreground hidden sm:inline">Free QR Code Generator</span>
+          </div>
+        </a>
+        <div className="flex items-center gap-1">
+          <nav className="hidden md:flex items-center gap-1 mr-2">
+            <a href="/blog" className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded transition-colors">Blog</a>
+            <a href="/about" className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded transition-colors">About</a>
+          </nav>
+          <ThemeToggle />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" aria-label="About QR Studio">
+                <Info className="w-4 h-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs">
+              <p className="text-xs">
+                Generate custom QR codes for 40+ types — WiFi, vCard, Bitcoin, UPI and more.
+                All processing happens in your browser. No data is ever sent to a server.
+              </p>
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+// ── Root App ──────────────────────────────────────────────────────────────────
 export default function App() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
   const [storedType, setStoredType] = useLocalStorage<QRType>('qr-last-type', 'url');
   const [storedTemplate, setStoredTemplate] = useLocalStorage<TemplateName>('qr-last-template', 'classic');
 
-  const [type, setType] = useState<QRType>(storedType);
-  const [data, setData] = useState<QRData>({});
-  const [template, setTemplate] = useState<TemplateName>(storedTemplate);
-  const [customColor, setCustomColor] = useState('#7c3aed');
+  const [qrType, setQrTypeState] = useState<QRType>(storedType);
+  const [qrData, setQrData] = useState<QRData>({});
+  const [template, setTemplateState] = useState<TemplateName>(storedTemplate);
+  const [customization, setCustomization] = useState<CustomizationOptions>(DEFAULT_CUSTOMIZATION);
 
-  const debouncedData = useDebounce(data, 400);
+  const debouncedData = useDebounce(qrData, 300);
 
-  const handleTypeChange = useCallback((newType: QRType) => {
-    setType(newType);
-    setStoredType(newType);
-    setData({});
+  // Restore state from URL ?state= param on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const encoded = params.get('state');
+    if (!encoded) return;
+    try {
+      const decoded = decodeURIComponent(escape(atob(encoded)));
+      const parsed = JSON.parse(decoded) as {
+        type?: QRType;
+        data?: QRData;
+        template?: TemplateName;
+        customization?: Partial<CustomizationOptions>;
+      };
+      if (parsed.type) { setQrTypeState(parsed.type); setStoredType(parsed.type); }
+      if (parsed.data) setQrData(parsed.data);
+      if (parsed.template) { setTemplateState(parsed.template); setStoredTemplate(parsed.template); }
+      if (parsed.customization) setCustomization({ ...DEFAULT_CUSTOMIZATION, ...parsed.customization });
+    } catch {
+      // Ignore corrupt state param
+    }
+  // Only run once on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const setQrType = useCallback((t: QRType) => {
+    setQrTypeState(t);
+    setStoredType(t);
+    setQrData({});
   }, [setStoredType]);
 
-  const handleTemplateChange = useCallback((newTemplate: TemplateName) => {
-    setTemplate(newTemplate);
-    setStoredTemplate(newTemplate);
+  const setTemplate = useCallback((t: TemplateName) => {
+    setTemplateState(t);
+    setStoredTemplate(t);
   }, [setStoredTemplate]);
 
-  const handleDataChange = useCallback((newData: QRData) => {
-    setData(newData);
-  }, []);
+  const config = getTypeConfig(qrType);
 
-  const handleReset = useCallback(() => {
-    setData({});
-  }, []);
-
-  const config = getTypeConfig(type);
-
-  // Check if required fields are filled
   const isValid = useMemo(() => {
     if (!config) return false;
     return config.fields
       .filter(f => f.required)
       .every(f => {
         const val = debouncedData[f.name];
-        return val && val.trim().length > 0;
+        return val !== undefined && val.trim().length > 0;
       });
   }, [config, debouncedData]);
 
   const qrText = useMemo(() => {
     if (!isValid) return '';
-    return generateQRData(type, debouncedData);
-  }, [type, debouncedData, isValid]);
+    return generateQRData(qrType, debouncedData);
+  }, [qrType, debouncedData, isValid]);
 
-  const isDataTooLong = qrText.length > 2953;
+  const state = useMemo(() => ({
+    type: qrType,
+    data: qrData,
+    template,
+    customColor: customization.fgColor,
+    customization,
+  }), [qrType, qrData, template, customization]);
+
+  const homeProps = {
+    canvasRef,
+    qrType,
+    setQrType,
+    qrData,
+    setQrData,
+    template,
+    setTemplate,
+    customization,
+    setCustomization,
+    qrText,
+    state,
+  };
 
   return (
-    <TooltipProvider delayDuration={300}>
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
-        {/* Header */}
-        <header className="sticky top-0 z-50 bg-white/70 dark:bg-slate-950/70 backdrop-blur-xl border-b border-border/60">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg shadow-primary/20">
-                <QrCode className="w-4 h-4 text-primary-foreground" />
-              </div>
-              <div className="flex items-baseline gap-2">
-                <h1 className="font-bold text-lg tracking-tight">QR Studio</h1>
-                <span className="text-xs text-muted-foreground hidden sm:inline">Professional QR Code Generator</span>
-              </div>
-            </div>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" className="text-muted-foreground">
-                  <Info className="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p className="max-w-xs text-xs">Generate QR codes for 26 different data types. Choose a template, fill in the fields, and download your code.</p>
-              </TooltipContent>
-            </Tooltip>
-          </div>
-        </header>
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      <TooltipProvider delayDuration={300}>
+        {/* Skip link for accessibility */}
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 z-50 bg-background px-4 py-2 rounded-lg border border-border text-sm font-medium"
+        >
+          Skip to content
+        </a>
 
-        {/* Main Content */}
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
-            {/* Left Column - Controls */}
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.4 }}
-              className="space-y-4 lg:space-y-6"
-            >
-              {/* Type Selection Card */}
-              <Card className="shadow-sm border-border/60">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <Settings className="w-4 h-4 text-primary" />
-                    QR Code Type
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <TypeSelector selected={type} onChange={handleTypeChange} />
-                </CardContent>
-              </Card>
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+          <AppHeader />
+          <main id="main-content">
+            <Routes>
+              <Route path="/" element={<Home {...homeProps} />} />
+              <Route path="/wifi-qr-code-generator" element={<LandingPage type="wifi" />} />
+              <Route path="/url-qr-code-generator" element={<LandingPage type="url" />} />
+              <Route path="/vcard-qr-code-generator" element={<LandingPage type="vcard" />} />
+              <Route path="/whatsapp-qr-code-generator" element={<LandingPage type="whatsapp" />} />
+              <Route path="/upi-qr-code-generator" element={<LandingPage type="upi" />} />
+              <Route path="/bitcoin-qr-code-generator" element={<LandingPage type="bitcoin" />} />
+              <Route path="/bulk-qr-code-generator" element={<BulkPlaceholder />} />
+              <Route path="/blog" element={<Blog />} />
+              <Route path="/about" element={<About />} />
+              <Route path="/privacy" element={<Privacy />} />
+              <Route path="/terms" element={<Terms />} />
+              <Route path="/contact" element={<Contact />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </main>
+        </div>
 
-              {/* Dynamic Form Card */}
-              <Card className="shadow-sm border-border/60">
-                <CardHeader className="pb-3 flex flex-row items-center justify-between">
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <QrCode className="w-4 h-4 text-primary" />
-                    Content Details
-                  </CardTitle>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleReset}
-                    className="h-8 px-2 text-muted-foreground hover:text-foreground"
-                    aria-label="Reset form"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5 mr-1" />
-                    <span className="text-xs">Reset</span>
-                  </Button>
-                </CardHeader>
-                <CardContent>
-                  <DynamicForm
-                    type={type}
-                    data={data}
-                    onChange={handleDataChange}
-                  />
-                </CardContent>
-              </Card>
-
-              {/* Template Selection Card */}
-              <Card className="shadow-sm border-border/60">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <Palette className="w-4 h-4 text-primary" />
-                    Visual Template
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <TemplateSelector selected={template} onChange={handleTemplateChange} />
-
-                  {/* Color Picker for Vibrant Template */}
-                  <AnimatePresence>
-                    {template === 'vibrant' && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="overflow-hidden"
-                      >
-                        <div className="pt-2">
-                          <label className="text-xs font-medium text-muted-foreground mb-2 block">
-                            QR Code Color
-                          </label>
-                          <div className="flex items-center gap-3">
-                            <div className="relative">
-                              <input
-                                type="color"
-                                value={customColor}
-                                onChange={(e) => setCustomColor(e.target.value)}
-                                className="w-10 h-10 rounded-lg cursor-pointer border-2 border-border bg-transparent p-1"
-                                aria-label="Choose QR code color"
-                              />
-                            </div>
-                            <Input
-                              type="text"
-                              value={customColor}
-                              onChange={(e) => setCustomColor(e.target.value)}
-                              className="w-28 text-xs font-mono"
-                              placeholder="#7c3aed"
-                              aria-label="QR color hex value"
-                            />
-                            <div className="flex gap-1">
-                              {['#7c3aed', '#db2777', '#059669', '#d97706', '#dc2626', '#0891b2'].map((color) => (
-                                <button
-                                  key={color}
-                                  type="button"
-                                  onClick={() => setCustomColor(color)}
-                                  className={`w-6 h-6 rounded-full transition-transform hover:scale-110 ${customColor === color ? 'ring-2 ring-offset-2 ring-primary' : ''}`}
-                                  style={{ backgroundColor: color }}
-                                  aria-label={`Set color to ${color}`}
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </CardContent>
-              </Card>
-
-              {/* Validation Status */}
-              <AnimatePresence>
-                {isDataTooLong && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800/50 p-3 flex items-start gap-2.5"
-                  >
-                    <Info className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-xs font-medium text-amber-800 dark:text-amber-300">Data too long</p>
-                      <p className="text-xs text-amber-700 dark:text-amber-400/80">QR codes can hold up to 2,953 characters. Try shortening your content.</p>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
-
-            {/* Right Column - Preview */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.4, delay: 0.1 }}
-              className="lg:sticky lg:top-24 lg:self-start"
-            >
-              <Card className="shadow-lg border-border/60">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <QrCode className="w-4 h-4 text-primary" />
-                    Live Preview
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <QRPreview
-                    type={type}
-                    data={debouncedData}
-                    template={template}
-                    customColor={customColor}
-                  />
-
-                  <Separator className="my-4" />
-
-                  {/* Stats */}
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>Type: <span className="font-medium text-foreground">{config?.label}</span></span>
-                    <span>Characters: <span className="font-medium text-foreground">{qrText.length}</span></span>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          </div>
-        </main>
-      </div>
-    </TooltipProvider>
+        <Toaster position="bottom-right" richColors />
+        <OnboardingTour />
+      </TooltipProvider>
+    </ThemeProvider>
   );
 }
